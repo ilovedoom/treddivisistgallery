@@ -118,7 +118,7 @@ export function Gallery3D({
     };
     renderer.domElement.addEventListener("click", onCanvasClick);
 
-    let yaw = Math.PI;
+    let yaw = 0;
     let pitch = 0;
     const clock = new THREE.Clock();
     const forward = new THREE.Vector3();
