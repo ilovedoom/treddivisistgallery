@@ -45,6 +45,9 @@ export function Gallery3D({
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.xr.enabled = true;
+    renderer.domElement.style.width = "100%";
+    renderer.domElement.style.height = "100%";
+    renderer.domElement.style.display = "block";
     mount.appendChild(renderer.domElement);
 
     scene.add(new THREE.HemisphereLight(0xffffff, 0x30303a, 1.1));
@@ -105,7 +108,7 @@ export function Gallery3D({
 
     const resize = () => {
       const { clientWidth: w, clientHeight: h } = mount;
-      renderer.setSize(w, h, false);
+      renderer.setSize(w, h);
       camera.aspect = w / Math.max(h, 1);
       camera.updateProjectionMatrix();
     };
