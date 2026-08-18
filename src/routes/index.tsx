@@ -64,6 +64,9 @@ function GalleryExperience() {
         toast(focus.title, { description: `Opera di ${focus.author}` });
       }
     });
+    return () => {
+      off();
+    };
   }, [manager, focus]);
 
   return (
