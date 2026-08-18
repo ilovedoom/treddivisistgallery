@@ -56,7 +56,7 @@ function GalleryExperience() {
 
   useEffect(() => {
     if (!manager) return;
-    return manager.onAction((action) => {
+    const off = manager.onAction((action) => {
       if (action === "INFO") setHudVisible((v) => !v);
       if (action === "MENU") toast("Menu della galleria");
       if (action === "CANCEL") document.exitPointerLock?.();
