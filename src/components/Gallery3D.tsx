@@ -1,39 +1,43 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import type { InputManager } from "@/lib/input/InputManager";
+import type { Artwork, GalleryConfig, LangCode } from "@/lib/gallery/types";
+import { resolveFlag } from "@/lib/gallery/resolve";
+import { buildPlaqueLines } from "@/lib/gallery/plaqueText";
+import { createPlaqueTexture } from "@/lib/gallery/plaqueTexture";
 
-interface Artwork {
-  title: string;
-  author: string;
-  color: number;
-  position: [number, number, number];
-  rotationY: number;
+const ART_HEIGHT = 1.9;
+
+function artworkSize(a: Artwork): { w: number; h: number } {
+  const ratio = a.media.width && a.media.height ? a.media.width / a.media.height : 1.5;
+  return { w: THREE.MathUtils.clamp(ART_HEIGHT * ratio, 0.8, 3.4), h: ART_HEIGHT };
 }
-
-const ARTWORKS: Artwork[] = [
-  { title: "Orizzonte Liquido", author: "M. Reni", color: 0xd97a4a, position: [-7.9, 2, -4], rotationY: Math.PI / 2 },
-  { title: "Campo Magnetico", author: "A. Vella", color: 0x3f7f8f, position: [-7.9, 2, 4], rotationY: Math.PI / 2 },
-  { title: "Silenzio Verticale", author: "L. Ferri", color: 0xb8a05a, position: [7.9, 2, -4], rotationY: -Math.PI / 2 },
-  { title: "Onda Ferma", author: "S. Toma", color: 0x7a5a8f, position: [7.9, 2, 4], rotationY: -Math.PI / 2 },
-  { title: "Terra Rossa", author: "G. Salvi", color: 0xa64b3c, position: [-3, 2, -11.9], rotationY: 0 },
-  { title: "Luce Obliqua", author: "C. Marra", color: 0x4c7a55, position: [3, 2, -11.9], rotationY: 0 },
-];
 
 export function Gallery3D({
   manager,
+  config,
+  lang,
   onFocus,
+  focusArtworkId,
+  viewingDistance = 2.6,
 }: {
   manager: InputManager | null;
-  onFocus: (a: { title: string; author: string } | null) => void;
+  config: GalleryConfig;
+  lang: LangCode;
+  onFocus?: (id: string | null) => void;
+  /** Modalità anteprima: camera fissa davanti a un'opera, nessun movimento. */
+  focusArtworkId?: string;
+  viewingDistance?: number;
 }) {
   const mountRef = useRef<HTMLDivElement>(null);
-  const focusRef = useRef<Artwork | null>(null);
+  const focusRef = useRef<string | null>(null);
   const onFocusRef = useRef(onFocus);
   onFocusRef.current = onFocus;
 
   useEffect(() => {
     const mount = mountRef.current;
-    if (!mount || !manager) return;
+    const preview = Boolean(focusArtworkId);
+    if (!mount || (!manager && !preview)) return;
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x101014);
@@ -44,7 +48,7 @@ export function Gallery3D({
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.xr.enabled = true;
+    renderer.xr.enabled = !preview;
     renderer.domElement.style.width = "100%";
     renderer.domElement.style.height = "100%";
     renderer.domElement.style.display = "block";
@@ -62,54 +66,121 @@ export function Gallery3D({
     floor.rotation.x = -Math.PI / 2;
     scene.add(floor);
 
+    const disposables: Array<{ dispose: () => void }> = [];
     const wallMat = new THREE.MeshStandardMaterial({ color: 0x24242c, roughness: 1 });
-    const walls: Array<[number, number, number, number]> = [
-      [-8, 0, 0, Math.PI / 2],
-      [8, 0, 0, -Math.PI / 2],
-      [0, 0, -12, 0],
-      [0, 0, 12, Math.PI],
-    ];
-    walls.forEach(([x, , z, ry]) => {
-      const geo = new THREE.PlaneGeometry(ry === 0 || Math.abs(ry) === Math.PI ? 16 : 24, 6);
-      const wall = new THREE.Mesh(geo, wallMat);
-      wall.position.set(x, 3, z);
-      wall.rotation.y = ry;
-      scene.add(wall);
-    });
+    disposables.push(wallMat);
 
-    const frames: Array<{ mesh: THREE.Mesh; data: Artwork }> = [];
-    ARTWORKS.forEach((a) => {
+    const frames: Array<{ mesh: THREE.Mesh; id: string }> = [];
+    const wallGroups = new Map<string, THREE.Group>();
+
+    // Ogni parete è un gruppo: opere, targhette e luci restano solidali alla parete.
+    config.walls.forEach((wall) => {
       const group = new THREE.Group();
-      const frame = new THREE.Mesh(
-        new THREE.BoxGeometry(3.2, 2.2, 0.12),
-        new THREE.MeshStandardMaterial({ color: 0x0d0d10 }),
-      );
-      const canvas = new THREE.Mesh(
-        new THREE.PlaneGeometry(2.9, 1.9),
-        new THREE.MeshStandardMaterial({ color: a.color, roughness: 0.6 }),
-      );
-      canvas.position.z = 0.08;
-      group.add(frame, canvas);
-      group.position.set(...a.position);
-      group.rotation.y = a.rotationY;
+      group.position.set(wall.x, 0, wall.z);
+      group.rotation.y = wall.rotationY;
+      const geo = new THREE.PlaneGeometry(wall.width, wall.height);
+      disposables.push(geo);
+      const mesh = new THREE.Mesh(geo, wallMat);
+      mesh.position.set(0, wall.height / 2, 0);
+      group.add(mesh);
       scene.add(group);
-      frames.push({ mesh: frame, data: a });
-
-      const spot = new THREE.PointLight(0xfff0d0, 12, 8);
-      spot.position.set(a.position[0] * 0.82, 4, a.position[2]);
-      scene.add(spot);
+      wallGroups.set(wall.id, group);
     });
 
-    // WebXR controllers take priority during an immersive session.
-    const onXrStart = () => manager.setXrActive(true);
-    const onXrEnd = () => manager.setXrActive(false);
-    renderer.xr.addEventListener("sessionstart", onXrStart);
-    renderer.xr.addEventListener("sessionend", onXrEnd);
+    // Pareti di chiusura (nessuna opera associata).
+    const frontGeo = new THREE.PlaneGeometry(16, 6);
+    disposables.push(frontGeo);
+    const front = new THREE.Mesh(frontGeo, wallMat);
+    front.position.set(0, 3, 12);
+    front.rotation.y = Math.PI;
+    scene.add(front);
+
+    config.artworks.forEach((a) => {
+      const parent = wallGroups.get(a.wallId);
+      if (!parent) return;
+      const { w, h } = artworkSize(a);
+
+      const group = new THREE.Group();
+      group.position.set(a.u, a.v, 0.06);
+      parent.add(group);
+
+      const frameGeo = new THREE.BoxGeometry(w + 0.3, h + 0.3, 0.12);
+      const frameMat = new THREE.MeshStandardMaterial({ color: 0x0d0d10 });
+      const canvasGeo = new THREE.PlaneGeometry(w, h);
+      const canvasMat = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(a.media.color),
+        roughness: 0.6,
+      });
+      disposables.push(frameGeo, frameMat, canvasGeo, canvasMat);
+      const frame = new THREE.Mesh(frameGeo, frameMat);
+      const canvasMesh = new THREE.Mesh(canvasGeo, canvasMat);
+      canvasMesh.position.z = 0.08;
+      group.add(frame, canvasMesh);
+      frames.push({ mesh: frame, id: a.id });
+
+      const spot = new THREE.PointLight(0xfff0d0, 10, 8);
+      spot.position.set(a.u, a.v + 2, 1.6);
+      parent.add(spot);
+
+      if (resolveFlag(config, a, "showPlaque")) {
+        const lines = buildPlaqueLines(config, a, lang, config.defaultLanguage);
+        if (lines.length) {
+          const pw = a.plaque.width;
+          const ph = a.plaque.height;
+          const texture = createPlaqueTexture(
+            lines,
+            config.plaqueStyle,
+            pw,
+            ph,
+            a.plaque.alignment,
+            a.plaque.textSize,
+          );
+          const plaqueGeo = new THREE.PlaneGeometry(pw, ph);
+          const plaqueMat = new THREE.MeshBasicMaterial({
+            map: texture,
+            transparent: config.plaqueStyle.opacity < 1,
+            opacity: config.plaqueStyle.opacity,
+          });
+          disposables.push(plaqueGeo, plaqueMat, texture);
+          const plaque = new THREE.Mesh(plaqueGeo, plaqueMat);
+
+          let px = 0;
+          let py = 0;
+          switch (a.plaque.position) {
+            case "LEFT":
+              px = -(w / 2 + 0.2 + pw / 2);
+              break;
+            case "RIGHT":
+              px = w / 2 + 0.2 + pw / 2;
+              break;
+            case "CUSTOM":
+              break;
+            default:
+              py = -(h / 2 + 0.22 + ph / 2);
+          }
+          plaque.position.set(
+            px + a.plaque.offset.x,
+            py + a.plaque.offset.y,
+            0.1 + a.plaque.offset.z,
+          );
+          plaque.rotation.z = (a.plaque.rotation * Math.PI) / 180;
+          // Figlia del gruppo opera: segue opera e parete mantenendo la posizione relativa.
+          group.add(plaque);
+        }
+      }
+    });
+
+    const onXrStart = () => manager?.setXrActive(true);
+    const onXrEnd = () => manager?.setXrActive(false);
+    if (!preview) {
+      renderer.xr.addEventListener("sessionstart", onXrStart);
+      renderer.xr.addEventListener("sessionend", onXrEnd);
+    }
 
     const resize = () => {
       const { clientWidth: w, clientHeight: h } = mount;
-      renderer.setSize(w, h);
-      camera.aspect = w / Math.max(h, 1);
+      renderer.setSize(Math.max(w, 1), Math.max(h, 1));
+      camera.aspect = Math.max(w, 1) / Math.max(h, 1);
       camera.updateProjectionMatrix();
     };
     resize();
@@ -117,9 +188,39 @@ export function Gallery3D({
     ro.observe(mount);
 
     const onCanvasClick = () => {
-      if (!("ontouchstart" in window)) renderer.domElement.requestPointerLock?.();
+      if (!preview && !("ontouchstart" in window)) renderer.domElement.requestPointerLock?.();
     };
     renderer.domElement.addEventListener("click", onCanvasClick);
+
+    if (preview) {
+      const target = config.artworks.find((a) => a.id === focusArtworkId) ?? config.artworks[0];
+      const wall = target ? config.walls.find((w) => w.id === target.wallId) : undefined;
+      if (target && wall) {
+        const dirX = Math.cos(wall.rotationY);
+        const dirZ = -Math.sin(wall.rotationY);
+        const normX = Math.sin(wall.rotationY);
+        const normZ = Math.cos(wall.rotationY);
+        const ax = wall.x + dirX * target.u;
+        const az = wall.z + dirZ * target.u;
+        camera.position.set(ax + normX * viewingDistance, target.v - 0.15, az + normZ * viewingDistance);
+        camera.lookAt(ax, target.v - 0.15, az);
+      }
+      renderer.render(scene, camera);
+      const onResizeRender = () => {
+        resize();
+        renderer.render(scene, camera);
+      };
+      const ro2 = new ResizeObserver(onResizeRender);
+      ro2.observe(mount);
+      return () => {
+        ro2.disconnect();
+        ro.disconnect();
+        renderer.domElement.removeEventListener("click", onCanvasClick);
+        disposables.forEach((d) => d.dispose());
+        renderer.dispose();
+        if (renderer.domElement.parentNode === mount) mount.removeChild(renderer.domElement);
+      };
+    }
 
     let yaw = 0;
     let pitch = 0;
@@ -128,10 +229,9 @@ export function Gallery3D({
     const right = new THREE.Vector3();
     const raycaster = new THREE.Raycaster();
 
-    // PlayerController: consumes only abstract input, never device specifics.
     renderer.setAnimationLoop(() => {
       const dt = Math.min(clock.getDelta(), 0.05);
-      const input = manager.sample();
+      const input = manager!.sample();
 
       yaw -= input.look.x * dt * 0.35;
       pitch = Math.max(-1.2, Math.min(1.2, pitch - input.look.y * dt * 0.35));
@@ -148,10 +248,10 @@ export function Gallery3D({
 
       raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
       const hit = raycaster.intersectObjects(frames.map((f) => f.mesh))[0];
-      const found = hit && hit.distance < 6 ? frames.find((f) => f.mesh === hit.object)!.data : null;
+      const found = hit && hit.distance < 6 ? frames.find((f) => f.mesh === hit.object)!.id : null;
       if (found !== focusRef.current) {
         focusRef.current = found ?? null;
-        onFocusRef.current(found ? { title: found.title, author: found.author } : null);
+        onFocusRef.current?.(found);
       }
 
       renderer.render(scene, camera);
@@ -163,10 +263,11 @@ export function Gallery3D({
       renderer.xr.removeEventListener("sessionend", onXrEnd);
       renderer.domElement.removeEventListener("click", onCanvasClick);
       ro.disconnect();
+      disposables.forEach((d) => d.dispose());
       renderer.dispose();
-      mount.removeChild(renderer.domElement);
+      if (renderer.domElement.parentNode === mount) mount.removeChild(renderer.domElement);
     };
-  }, [manager]);
+  }, [manager, config, lang, focusArtworkId, viewingDistance]);
 
   return <div ref={mountRef} className="absolute inset-0" />;
 }
