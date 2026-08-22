@@ -179,7 +179,7 @@ function Admin() {
                     max={6}
                     step={0.1}
                     value={[distance]}
-                    onValueChange={([v]) => setDistance(v)}
+                    onValueChange={([v]) => setDistance(v ?? distance)}
                   />
                 </div>
 
