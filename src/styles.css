@@ -142,3 +142,76 @@
     color: var(--color-foreground);
   }
 }
+
+/* ---------------------------------------------------------------
+ * Design system condiviso: frontend immersivo, mobile, VR e CMS.
+ * Token unici per spacing, blur, ombre, durate e z-index.
+ * --------------------------------------------------------------- */
+@theme inline {
+  --spacing-safe-t: env(safe-area-inset-top, 0px);
+  --spacing-safe-r: env(safe-area-inset-right, 0px);
+  --spacing-safe-b: env(safe-area-inset-bottom, 0px);
+  --spacing-safe-l: env(safe-area-inset-left, 0px);
+  --blur-glass: 14px;
+  --shadow-panel: 0 18px 48px -24px oklch(0 0 0 / 0.75);
+  --shadow-float: 0 8px 24px -14px oklch(0 0 0 / 0.6);
+  --animate-duration-fast: 120ms;
+  --animate-duration-base: 200ms;
+}
+
+:root {
+  /* Gerarchia overlay: scena < hud < hint < info < viewer < help/feedback < sistema */
+  --z-scene: 0;
+  --z-hud: 10;
+  --z-hint: 20;
+  --z-touch: 30;
+  --z-artwork-info: 40;
+  --z-artwork-viewer: 50;
+  --z-utility: 60;
+  --z-system: 80;
+  --ui-panel-opacity: 0.82;
+  --stick-idle-opacity: 0.24;
+  --stick-active-opacity: 0.55;
+}
+
+/* Pannello vetro: linguaggio visivo comune a tutta la piattaforma. */
+@utility glass-panel {
+  border-radius: var(--radius-xl);
+  border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
+  background: color-mix(in oklab, var(--card) 82%, transparent);
+  backdrop-filter: blur(var(--blur-glass));
+  box-shadow: var(--shadow-panel);
+}
+
+@utility safe-inset {
+  padding-top: max(1rem, env(safe-area-inset-top, 0px));
+  padding-right: max(1rem, env(safe-area-inset-right, 0px));
+  padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+  padding-left: max(1rem, env(safe-area-inset-left, 0px));
+}
+
+@utility focus-ring {
+  &:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+@layer base {
+  html,
+  body {
+    overscroll-behavior: none;
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
