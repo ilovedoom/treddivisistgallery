@@ -44,6 +44,25 @@ export class InputManager {
   private actionListeners = new Set<ActionListener>();
   private connectionListeners = new Set<ConnectionListener>();
   private disposers: Array<() => void> = [];
+  /** Quando un overlay prende il focus i controlli di navigazione vengono sospesi. */
+  private enabled = true;
+
+  /** Attiva/disattiva movimento, camera e azioni: usato dall'OverlayManager. */
+  setEnabled(enabled: boolean) {
+    if (this.enabled === enabled) return;
+    this.enabled = enabled;
+    if (!enabled) {
+      this.keys.clear();
+      this.mouseLook = { x: 0, y: 0 };
+      this.touchMove = { x: 0, y: 0 };
+      this.touchLook = { x: 0, y: 0 };
+    }
+  }
+
+  isEnabled() {
+    return this.enabled;
+  }
+
 
   start() {
     const onKeyDown = (e: KeyboardEvent) => {
