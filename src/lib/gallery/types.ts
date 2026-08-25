@@ -101,6 +101,8 @@ export interface Artwork {
   plaque: PlaqueConfig;
   customPlaqueText: Localized;
   display: DisplayOverrides;
+  /** null = usa la cornice predefinita della galleria. */
+  frame: FrameConfig | null;
 }
 
 export interface Wall {
@@ -141,6 +143,14 @@ export interface GalleryConfig {
   walls: Wall[];
   rooms: Room[];
   artworks: Artwork[];
+  textures: TextureAsset[];
+  materials: SurfaceSet;
+  baseboard: BaseboardConfig;
+  frameDefaults: FrameConfig;
+  lighting: LightingConfig;
+  themes: GalleryTheme[];
+  activeThemeId: string | null;
+  palettes: ColorPalette[];
 }
 
 export interface GalleryVersion {
@@ -157,4 +167,91 @@ export interface GalleryState {
   config: GalleryConfig;
   versions: GalleryVersion[];
   publishedVersionId: string | null;
+}
+
+/* --------------------------------------------------------------
+ * Materiali, texture, zoccoli, cornici e preset della galleria
+ * ------------------------------------------------------------ */
+
+export type TextureCategory =
+  | "wood"
+  | "stone"
+  | "concrete"
+  | "marble"
+  | "plaster"
+  | "fabric"
+  | "metal"
+  | "custom";
+
+export interface TextureAsset {
+  id: string;
+  name: string;
+  category: TextureCategory;
+  /** null = texture procedurale generata a runtime (nessun download). */
+  url: string | null;
+}
+
+export interface SurfaceMaterial {
+  color: string;
+  textureId: string | null;
+  /** Ripetizioni della texture sulla superficie. */
+  repeat: number;
+  roughness: number;
+  metalness: number;
+  opacity: number;
+  /** Intensità della normal map derivata dalla texture. */
+  normalStrength: number;
+}
+
+export type SurfaceKey = "walls" | "ceiling" | "floor" | "doors";
+
+export type SurfaceSet = Record<SurfaceKey, SurfaceMaterial>;
+
+export interface BaseboardConfig {
+  mode: "NONE" | "SIMPLE" | "CUSTOM";
+  height: number;
+  depth: number;
+  material: SurfaceMaterial;
+}
+
+export type FramePreset = "MINIMAL" | "CLASSIC" | "DEEP" | "FLOATING" | "CUSTOM";
+export type FrameMaterialKind = "WOOD" | "METAL" | "PAINTED" | "CUSTOM";
+
+export interface FrameConfig {
+  enabled: boolean;
+  preset: FramePreset;
+  /** Larghezza del profilo della cornice (m). */
+  width: number;
+  /** Profondità dell'estruso (m). */
+  depth: number;
+  /** Distacco della cornice dalla parete (m). */
+  offset: number;
+  /** Passe-partout tra apertura interna e opera (m). */
+  matte: number;
+  bevel: number;
+  kind: FrameMaterialKind;
+  material: SurfaceMaterial;
+}
+
+export interface ColorPalette {
+  id: string;
+  name: string;
+  colors: string[];
+}
+
+export interface LightingConfig {
+  ambient: number;
+  key: number;
+  spot: number;
+  warmth: string;
+  background: string;
+}
+
+export interface GalleryTheme {
+  id: string;
+  name: string;
+  materials: SurfaceSet;
+  baseboard: BaseboardConfig;
+  frame: FrameConfig;
+  lighting: LightingConfig;
 }
