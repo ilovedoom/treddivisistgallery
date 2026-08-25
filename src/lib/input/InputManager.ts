@@ -167,6 +167,14 @@ export class InputManager {
     const move = { x: 0, y: 0 };
     const look = { x: 0, y: 0 };
 
+    if (!this.enabled) {
+      this.mouseLook = { x: 0, y: 0 };
+      this.touchLook = { x: 0, y: 0 };
+      return { move, look, held, source: this.source, family: this.profile?.family ?? null };
+    }
+
+
+
     // Keyboard + mouse
     const k = this.keys;
     if (k.has("KeyW") || k.has("ArrowUp")) move.y += 1;
