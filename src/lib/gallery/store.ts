@@ -1,6 +1,15 @@
 import { useSyncExternalStore } from "react";
 import type { Artwork, GalleryConfig, GalleryState, GalleryVersion } from "./types";
-import { DEFAULT_STATE } from "./defaults";
+import {
+  DEFAULT_BASEBOARD,
+  DEFAULT_FRAME,
+  DEFAULT_LIGHTING,
+  DEFAULT_MATERIALS,
+  DEFAULT_PALETTES,
+  DEFAULT_STATE,
+  DEFAULT_TEXTURES,
+  DEFAULT_THEMES,
+} from "./defaults";
 
 const STORAGE_KEY = "aurora-gallery-cms-v1";
 
@@ -10,6 +19,22 @@ const listeners = new Set<() => void>();
 
 function emit() {
   listeners.forEach((l) => l());
+}
+
+/** Completa configurazioni salvate prima dell'introduzione di materiali e cornici. */
+function normalizeConfig(config: GalleryConfig): GalleryConfig {
+  return {
+    ...config,
+    textures: config.textures?.length ? config.textures : DEFAULT_TEXTURES,
+    materials: { ...DEFAULT_MATERIALS, ...(config.materials ?? {}) },
+    baseboard: config.baseboard ?? DEFAULT_BASEBOARD,
+    frameDefaults: config.frameDefaults ?? DEFAULT_FRAME,
+    lighting: { ...DEFAULT_LIGHTING, ...(config.lighting ?? {}) },
+    themes: config.themes?.length ? config.themes : DEFAULT_THEMES,
+    activeThemeId: config.activeThemeId ?? DEFAULT_THEMES[0]!.id,
+    palettes: config.palettes?.length ? config.palettes : DEFAULT_PALETTES,
+    artworks: (config.artworks ?? []).map((a) => ({ ...a, frame: a.frame ?? null })),
+  };
 }
 
 function persist() {
@@ -27,12 +52,22 @@ function hydrate() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as GalleryState;
-      if (parsed?.config?.artworks) state = parsed;
+      if (parsed?.config?.artworks) {
+        state = {
+          ...parsed,
+          config: normalizeConfig(parsed.config),
+          versions: (parsed.versions ?? []).map((v) => ({
+            ...v,
+            snapshot: normalizeConfig(v.snapshot),
+          })),
+        };
+      }
     }
   } catch {
     /* dati corrotti: si riparte dai default */
   }
 }
+
 
 function subscribe(listener: () => void) {
   hydrate();
