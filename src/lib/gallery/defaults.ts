@@ -1,4 +1,132 @@
-import type { Artwork, GalleryConfig, GalleryState, PlaqueConfig } from "./types";
+import type {
+  Artwork,
+  BaseboardConfig,
+  ColorPalette,
+  FrameConfig,
+  FramePreset,
+  GalleryConfig,
+  GalleryState,
+  GalleryTheme,
+  LightingConfig,
+  PlaqueConfig,
+  SurfaceMaterial,
+  SurfaceSet,
+  TextureAsset,
+} from "./types";
+
+function surface(
+  color: string,
+  textureId: string | null,
+  repeat: number,
+  roughness: number,
+  metalness = 0,
+): SurfaceMaterial {
+  return { color, textureId, repeat, roughness, metalness, opacity: 1, normalStrength: 0.4 };
+}
+
+/** Libreria texture procedurali disponibile senza upload. */
+export const DEFAULT_TEXTURES: TextureAsset[] = [
+  { id: "tex-plaster", name: "Intonaco fine", category: "plaster", url: null },
+  { id: "tex-concrete", name: "Cemento", category: "concrete", url: null },
+  { id: "tex-marble", name: "Marmo venato", category: "marble", url: null },
+  { id: "tex-stone", name: "Pietra", category: "stone", url: null },
+  { id: "tex-wood", name: "Rovere", category: "wood", url: null },
+  { id: "tex-fabric", name: "Tessuto", category: "fabric", url: null },
+  { id: "tex-metal", name: "Metallo spazzolato", category: "metal", url: null },
+];
+
+export const DEFAULT_MATERIALS: SurfaceSet = {
+  walls: surface("#efece6", "tex-plaster", 6, 0.95),
+  ceiling: surface("#f7f6f3", "tex-plaster", 8, 1),
+  floor: surface("#c9bfae", "tex-wood", 14, 0.65),
+  doors: surface("#6f584a", "tex-wood", 3, 0.55),
+};
+
+export const DEFAULT_BASEBOARD: BaseboardConfig = {
+  mode: "SIMPLE",
+  height: 0.14,
+  depth: 0.04,
+  material: surface("#e2ded4", null, 1, 0.6),
+};
+
+/** Preset cornice: profilo, profondità, distacco e passe-partout. */
+export const FRAME_PRESETS: Record<
+  Exclude<FramePreset, "CUSTOM">,
+  Pick<FrameConfig, "width" | "depth" | "offset" | "matte" | "bevel" | "kind">
+> = {
+  MINIMAL: { width: 0.03, depth: 0.03, offset: 0.02, matte: 0, bevel: 0.2, kind: "METAL" },
+  CLASSIC: { width: 0.09, depth: 0.06, offset: 0.03, matte: 0.05, bevel: 0.5, kind: "WOOD" },
+  DEEP: { width: 0.07, depth: 0.14, offset: 0.02, matte: 0.03, bevel: 0.3, kind: "PAINTED" },
+  FLOATING: { width: 0.02, depth: 0.05, offset: 0.06, matte: 0, bevel: 0.1, kind: "PAINTED" },
+};
+
+export const DEFAULT_FRAME: FrameConfig = {
+  enabled: true,
+  preset: "CLASSIC",
+  ...FRAME_PRESETS.CLASSIC,
+  material: surface("#3b2f26", "tex-wood", 2, 0.5, 0.05),
+};
+
+export const DEFAULT_LIGHTING: LightingConfig = {
+  ambient: 0.65,
+  key: 0.75,
+  spot: 1.1,
+  warmth: "#fff4e2",
+  background: "#e8e5df",
+};
+
+export const DEFAULT_PALETTES: ColorPalette[] = [
+  { id: "neutral", name: "Neutra", colors: ["#efece6", "#c9bfae", "#3b2f26", "#1b1b1f"] },
+  { id: "museum", name: "Museo", colors: ["#e7e3dc", "#8c8577", "#2c2a26", "#f4f1ea"] },
+  { id: "contrast", name: "Contrasto", colors: ["#1f1f22", "#3a3a40", "#d8d2c4", "#c98a3c"] },
+];
+
+export const DEFAULT_THEMES: GalleryTheme[] = [
+  {
+    id: "theme-classic",
+    name: "Museo classico",
+    materials: DEFAULT_MATERIALS,
+    baseboard: DEFAULT_BASEBOARD,
+    frame: DEFAULT_FRAME,
+    lighting: DEFAULT_LIGHTING,
+  },
+  {
+    id: "theme-white-cube",
+    name: "White cube",
+    materials: {
+      walls: surface("#fafafa", null, 1, 0.98),
+      ceiling: surface("#ffffff", null, 1, 1),
+      floor: surface("#dedad3", "tex-concrete", 10, 0.8),
+      doors: surface("#f0f0f0", null, 1, 0.7),
+    },
+    baseboard: { ...DEFAULT_BASEBOARD, mode: "NONE" },
+    frame: {
+      enabled: true,
+      preset: "MINIMAL",
+      ...FRAME_PRESETS.MINIMAL,
+      material: surface("#1c1c1e", null, 1, 0.4, 0.3),
+    },
+    lighting: { ambient: 0.8, key: 0.7, spot: 0.9, warmth: "#ffffff", background: "#f2f2f2" },
+  },
+  {
+    id: "theme-dark",
+    name: "Sala scura",
+    materials: {
+      walls: surface("#2a2a2e", "tex-plaster", 6, 0.9),
+      ceiling: surface("#232327", null, 1, 1),
+      floor: surface("#3a332c", "tex-stone", 12, 0.75),
+      doors: surface("#4a3f36", "tex-wood", 3, 0.5),
+    },
+    baseboard: { ...DEFAULT_BASEBOARD, material: surface("#1d1d20", null, 1, 0.6) },
+    frame: {
+      enabled: true,
+      preset: "DEEP",
+      ...FRAME_PRESETS.DEEP,
+      material: surface("#b08d4f", "tex-metal", 2, 0.35, 0.6),
+    },
+    lighting: { ambient: 0.35, key: 0.5, spot: 1.6, warmth: "#ffe3b8", background: "#17171a" },
+  },
+];
 
 export const DEFAULT_PLAQUE: PlaqueConfig = {
   position: "BOTTOM",
@@ -57,6 +185,7 @@ function artwork(
       plaqueFields: null,
       bottomFields: null,
     },
+    frame: null,
   };
 }
 
@@ -94,6 +223,14 @@ export const DEFAULT_CONFIG: GalleryConfig = {
     plaqueTemplate: "museum",
     bottomFields: ["technique", "dimensions", "description"],
   },
+  textures: DEFAULT_TEXTURES,
+  materials: DEFAULT_MATERIALS,
+  baseboard: DEFAULT_BASEBOARD,
+  frameDefaults: DEFAULT_FRAME,
+  lighting: DEFAULT_LIGHTING,
+  themes: DEFAULT_THEMES,
+  activeThemeId: "theme-classic",
+  palettes: DEFAULT_PALETTES,
   walls: [
     { id: "wall-left", x: -8, z: 0, rotationY: Math.PI / 2, width: 24, height: 6 },
     { id: "wall-right", x: 8, z: 0, rotationY: -Math.PI / 2, width: 24, height: 6 },
