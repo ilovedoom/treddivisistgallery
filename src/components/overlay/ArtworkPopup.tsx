@@ -2,7 +2,7 @@ import { Maximize2 } from "lucide-react";
 import { OverlayPanel } from "./OverlayPanel";
 import { useOverlays } from "@/lib/ui/overlay";
 import type { Artwork, GalleryConfig, LangCode } from "@/lib/gallery/types";
-import { loc } from "@/lib/gallery/fields";
+import { fieldLabel, fieldValue, loc } from "@/lib/gallery/fields";
 import { resolveBottomFields } from "@/lib/gallery/resolve";
 
 /** Popup informativo dell'opera: sintesi curatoriale e accesso al viewer. */
@@ -58,14 +58,18 @@ export function ArtworkPopup({
           }}
         />
         <dl className="min-w-0 space-y-3 text-sm">
-          {fields.map((field) => (
-            <div key={field.key} className="min-w-0">
-              <dt className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                {field.label}
-              </dt>
-              <dd className="text-foreground">{field.value}</dd>
-            </div>
-          ))}
+          {fields.map((key) => {
+            const value = fieldValue(artwork, key, lang, fallback);
+            if (!value) return null;
+            return (
+              <div key={key} className="min-w-0">
+                <dt className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  {fieldLabel(config, key)}
+                </dt>
+                <dd className="text-foreground">{value}</dd>
+              </div>
+            );
+          })}
         </dl>
       </div>
     </OverlayPanel>
