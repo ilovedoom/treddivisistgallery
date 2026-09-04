@@ -91,12 +91,15 @@ function Admin() {
             Metadata, alt text, targhette 3D e informazioni inferiori — un solo record per opera.
           </p>
         </div>
-        <Link
-          to="/"
-          className="text-sm font-medium text-primary underline-offset-4 hover:underline"
-        >
-          ← Torna alla galleria
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link
+            to="/"
+            className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+          >
+            ← Torna alla galleria
+          </Link>
+          <SignOutButton />
+        </div>
       </header>
 
       <Tabs defaultValue="artworks">
@@ -104,9 +107,11 @@ function Admin() {
           <TabsTrigger value="artworks">Opere</TabsTrigger>
           <TabsTrigger value="bulk">Bulk editor</TabsTrigger>
           <TabsTrigger value="a11y">Accessibilità</TabsTrigger>
+          <TabsTrigger value="look">Aspetto 3D</TabsTrigger>
           <TabsTrigger value="settings">Galleria</TabsTrigger>
           <TabsTrigger value="versions">Versioni</TabsTrigger>
         </TabsList>
+
 
         <TabsContent value="artworks" className="mt-6">
           {artwork ? (
