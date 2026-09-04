@@ -5,6 +5,7 @@ import type { Artwork, GalleryConfig, LangCode } from "@/lib/gallery/types";
 import { resolveFlag } from "@/lib/gallery/resolve";
 import { buildPlaqueLines } from "@/lib/gallery/plaqueText";
 import { createPlaqueTexture } from "@/lib/gallery/plaqueTexture";
+import { buildSurfaceMaterial } from "@/lib/gallery/textures";
 
 const ART_HEIGHT = 1.9;
 
@@ -39,9 +40,13 @@ export function Gallery3D({
     const preview = Boolean(focusArtworkId);
     if (!mount || (!manager && !preview)) return;
 
+    const disposables: Array<{ dispose: () => void }> = [];
+    const light = config.lighting;
+    const materials = config.materials;
+
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x101014);
-    scene.fog = new THREE.Fog(0x101014, 12, 34);
+    scene.background = new THREE.Color(light.background);
+    scene.fog = new THREE.Fog(new THREE.Color(light.background).getHex(), 14, 40);
 
     const camera = new THREE.PerspectiveCamera(70, 1, 0.1, 100);
     camera.position.set(0, 1.7, 8);
@@ -54,23 +59,31 @@ export function Gallery3D({
     renderer.domElement.style.display = "block";
     mount.appendChild(renderer.domElement);
 
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x30303a, 1.1));
-    const key = new THREE.DirectionalLight(0xffffff, 1.1);
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x30303a, light.ambient * 1.6));
+    const key = new THREE.DirectionalLight(new THREE.Color(light.warmth), light.key * 1.4);
     key.position.set(4, 8, 6);
     scene.add(key);
 
-    const floor = new THREE.Mesh(
-      new THREE.PlaneGeometry(16, 24),
-      new THREE.MeshStandardMaterial({ color: 0x1c1c22, roughness: 0.9 }),
-    );
+    const floorGeo = new THREE.PlaneGeometry(16, 24);
+    disposables.push(floorGeo);
+    const floor = new THREE.Mesh(floorGeo, buildSurfaceMaterial(materials.floor, config.textures, disposables));
     floor.rotation.x = -Math.PI / 2;
     scene.add(floor);
 
-    const disposables: Array<{ dispose: () => void }> = [];
-    const wallMat = new THREE.MeshStandardMaterial({ color: 0x24242c, roughness: 1 });
-    disposables.push(wallMat);
+    const ceilGeo = new THREE.PlaneGeometry(16, 24);
+    disposables.push(ceilGeo);
+    const ceiling = new THREE.Mesh(ceilGeo, buildSurfaceMaterial(materials.ceiling, config.textures, disposables));
+    ceiling.rotation.x = Math.PI / 2;
+    ceiling.position.y = 6;
+    scene.add(ceiling);
 
-    const frames: Array<{ mesh: THREE.Mesh; id: string }> = [];
+    const wallMat = buildSurfaceMaterial(materials.walls, config.textures, disposables);
+    const baseboardMat =
+      config.baseboard.mode === "NONE"
+        ? null
+        : buildSurfaceMaterial(config.baseboard.material, config.textures, disposables);
+
+    const frames: Array<{ mesh: THREE.Mesh; id: string; canvas: THREE.MeshStandardMaterial }> = [];
     const wallGroups = new Map<string, THREE.Group>();
 
     // Ogni parete è un gruppo: opere, targhette e luci restano solidali alla parete.
@@ -83,6 +96,16 @@ export function Gallery3D({
       const mesh = new THREE.Mesh(geo, wallMat);
       mesh.position.set(0, wall.height / 2, 0);
       group.add(mesh);
+
+      // Zoccolo: segue la parete perché appartiene allo stesso gruppo.
+      if (baseboardMat) {
+        const bbGeo = new THREE.BoxGeometry(wall.width, config.baseboard.height, config.baseboard.depth);
+        disposables.push(bbGeo);
+        const bb = new THREE.Mesh(bbGeo, baseboardMat);
+        bb.position.set(0, config.baseboard.height / 2, config.baseboard.depth / 2);
+        group.add(bb);
+      }
+
       scene.add(group);
       wallGroups.set(wall.id, group);
     });
@@ -104,21 +127,31 @@ export function Gallery3D({
       group.position.set(a.u, a.v, 0.06);
       parent.add(group);
 
-      const frameGeo = new THREE.BoxGeometry(w + 0.3, h + 0.3, 0.12);
-      const frameMat = new THREE.MeshStandardMaterial({ color: 0x0d0d10 });
+      const frameCfg = a.frame ?? config.frameDefaults;
+      const border = frameCfg.enabled ? frameCfg.width + frameCfg.matte : 0.01;
+      const depth = frameCfg.enabled ? frameCfg.depth : 0.02;
+
+      const frameGeo = new THREE.BoxGeometry(w + border * 2, h + border * 2, depth);
+      const frameMat = frameCfg.enabled
+        ? buildSurfaceMaterial(frameCfg.material, config.textures, disposables)
+        : new THREE.MeshStandardMaterial({ color: 0x111114, roughness: 0.8 });
       const canvasGeo = new THREE.PlaneGeometry(w, h);
       const canvasMat = new THREE.MeshStandardMaterial({
         color: new THREE.Color(a.media.color),
-        roughness: 0.6,
+        roughness: 0.62,
+        metalness: 0.02,
       });
-      disposables.push(frameGeo, frameMat, canvasGeo, canvasMat);
+      disposables.push(frameGeo, canvasGeo, canvasMat);
+      if (!frameCfg.enabled) disposables.push(frameMat);
       const frame = new THREE.Mesh(frameGeo, frameMat);
+      frame.position.z = frameCfg.enabled ? frameCfg.offset : 0;
       const canvasMesh = new THREE.Mesh(canvasGeo, canvasMat);
-      canvasMesh.position.z = 0.08;
+      canvasMesh.position.z = frame.position.z + depth / 2 + 0.002;
       group.add(frame, canvasMesh);
-      frames.push({ mesh: frame, id: a.id });
+      frames.push({ mesh: frame, id: a.id, canvas: canvasMat });
 
-      const spot = new THREE.PointLight(0xfff0d0, 10, 8);
+      // Faretto museale sopra ogni opera.
+      const spot = new THREE.PointLight(new THREE.Color(light.warmth), light.spot * 9, 8);
       spot.position.set(a.u, a.v + 2, 1.6);
       parent.add(spot);
 
@@ -252,6 +285,13 @@ export function Gallery3D({
       if (found !== focusRef.current) {
         focusRef.current = found ?? null;
         onFocusRef.current?.(found);
+        // Highlight discreto: emissione sull'opera inquadrata, nessun contorno invasivo.
+        frames.forEach((f) => {
+          const active = f.id === found;
+          f.canvas.emissive.set(active ? 0xffffff : 0x000000);
+          f.canvas.emissiveIntensity = active ? 0.14 : 0;
+          f.canvas.needsUpdate = true;
+        });
       }
 
       renderer.render(scene, camera);
