@@ -23,6 +23,7 @@ import {
   useGalleryState,
 } from "@/lib/gallery/store";
 import { loc } from "@/lib/gallery/fields";
+import { AdminGate, SignOutButton } from "@/components/cms/AdminGate";
 
 const Gallery3D = lazy(() => import("@/components/Gallery3D"));
 
@@ -61,7 +62,9 @@ function AdminPage() {
   return (
     <main className="min-h-screen bg-background">
       <ClientOnly fallback={<div className="p-8 text-sm text-muted-foreground">Caricamento CMS…</div>}>
-        <Admin />
+        <AdminGate>
+          <Admin />
+        </AdminGate>
       </ClientOnly>
     </main>
   );
